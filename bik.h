@@ -7,12 +7,16 @@
 #include <QNetworkReply>
 #include <QUrl>
 #include <QDebug>
+#include <QStringList>
 
 class bik : public QObject
 {
     Q_OBJECT
 public:
     explicit bik(QObject *parent = 0);
+
+    /* Bitcoin Call List */
+    QMap<QString, QVariant> getreceivedbyaddress(QString, int);
 
 private:
     //Global vars
@@ -21,7 +25,7 @@ private:
     QNetworkReply * reply;
 
     //Global func
-    void proccessRequestQueryQueue(QString method);
+    void proccessRequestQueryQueue(QString method, QStringList params);
 signals:
     
 public slots:
