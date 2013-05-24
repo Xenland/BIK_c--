@@ -144,8 +144,6 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
 
                     //Send request
                     QNetworkReply * reply = netAccessManager->post(request, json);
-                        //Add reply to list to make it global(sort of) -- just to keep it alive for response/connection/networking connections request
-                        //netReplyList->append(reply);
 
 
                     //Delete the the request from the local queue
@@ -161,6 +159,14 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
         void bik::coin_server_response(QNetworkReply * net_reply){
             qDebug() << "NETWORKING RESPONSE";
 
+            /** Was this net reply error or success response? **/
+            if(net_reply->error() == 0){
+                //Successfull reply
+                qDebug() << "SUCCESS";
+            }else{
+                //Failed to get a successfull response reply.
+
+            }
             qDebug() << net_reply->readAll();
         }
 
@@ -202,6 +208,9 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
              **/
                 //Increment request tracker
                 last_request_id_tracker += 1;
+                    //Set bik tx id
+                    output["bik_tx_id"] = last_request_id_tracker;
+
 
                 //Add to queue
                 addToQueue(last_request_id_tracker, coin_server_id, "getreceivedbyaddress", params);

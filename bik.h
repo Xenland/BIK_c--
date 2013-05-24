@@ -31,7 +31,6 @@ private:
     /* Networking Manager */
         //Variables
         QNetworkAccessManager * netAccessManager;
-        QList<QNetworkReply> * netReplyList;
 
         int last_request_id_tracker;
         QList<QVariant> torpc_tracker_queue; //Stores a memory copy of the list of commands to submit from the client to the server
