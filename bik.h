@@ -1,13 +1,12 @@
 #ifndef BIK_H
 #define BIK_H
 
-#include <QObject>
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
 #include <QNetworkReply>
-#include <QUrl>
+#include <QNetworkAccessManager>
+#include <QObject>
+#include <QList>
+#include <QVariant>
 #include <QDebug>
-#include <QStringList>
 
 class bik : public QObject
 {
@@ -15,31 +14,39 @@ class bik : public QObject
 public:
     explicit bik(QObject *parent = 0);
 
-    /* Bitcoin Call List */
-    QMap<QString, QVariant> getreceivedbyaddress(QString coin_server_id, QString coin_address, int mininimum_confirmations=1);
+    /* Coin Api Call list */
+        //Variables
+            //No vars
 
+        //Functions
+        QMap<QString, QVariant> getreceviedbyaddress(QString coin_server_id, QString coin_address, int mininimum_confirmations=1);
 
 private:
-    //Global private vars
-    int id_tracker;
+    /* Networking Manager */
+        //Variables
+        QNetworkAccessManager * netAccessManager;
+        QList<QNetworkReply> * netReplyList;
 
-    int proccess_queued_request_running;
+        int last_request_id_tracker;
+        QList<QVariant> torpc_tracker_queue; //Stores a memory copy of the list of commands to submit from the client to the server
+        QList<QVariant> fromrpc_tracker_queue; //Stores as a 2 phase system; as network requests to the server are submitted they are added to here, the rows/datas/values are filled as the networking responses come in so that a slot can alert the calling app when new data has arraived)
 
-    QNetworkAccessManager * netManager;
-    QNetworkReply * reply;
-    QList<QVariant> * torpc_tracker_queue; //Stores a memory copy of the list of commands to submit from the client to the server
+        int proccessing_request_queue;
+
+        //Functions
+        void addToQueue(int request_id_tracker, QString coin_api_call, QVariantList coin_api_parameters);
 
 signals:
-    void addRequestQueryToQueue(int, QString, QStringList);
 
-
+        //New request added
+        void requestAddedToQueue();
+    
 public slots:
-
+    
 
 private slots:
-    void reply_net(QNetworkReply*);
-    void proccess_queued_request(int, QString, QStringList);
-    
+        void process_request_queue();
+        void coin_server_response(QNetworkReply*);
 };
 
 #endif // BIK_H
