@@ -25,6 +25,12 @@ bik::bik(QObject *parent) : QObject(parent){
 
 
 
+void bik::addServerConfig(QString server_id_name, QString connection_string){
+    //Add server to config
+    server_list[server_id_name] = connection_string;
+}
+
+
 
 
 
@@ -34,13 +40,14 @@ bik::bik(QObject *parent) : QObject(parent){
         /* *** *** *** *** *** *** *** ***
          * Add "API Call" to the queue to be requested to the network
          **/
-        void bik::addToQueue(int request_id_tracker, QString coin_api_call, QVariantList coin_api_parameters){
+        void bik::addToQueue(int request_id_tracker, QString server_id, QString coin_api_call, QVariantList coin_api_parameters){
             //Define local function variables
             QMap<QString, QVariant> new_request_map;
 
 
             //Generate request to later add to the coin request tracker
             new_request_map["id_tracker"]   = request_id_tracker;
+            new_request_map["server_id"]    = server_id;
             new_request_map["method"]       = coin_api_call;
             new_request_map["params"]       = coin_api_parameters;
 
@@ -65,17 +72,17 @@ bik::bik(QObject *parent) : QObject(parent){
 
                 //Loop through the local request queue
                 while(torpc_tracker_queue.size() > 0){
-                    /** Decide which service/server/api to connect to for now its just static **/
-                    QNetworkRequest request;
-                    request.setUrl(QUrl("http://username:password@127.0.0.1:4367/"));
-
 
                     /** Extract the tracker row **/
                     QMap<QString, QVariant> to_tracker_request  = QVariant(torpc_tracker_queue[0]).toMap();
                     int id_tracker  = to_tracker_request["id_tracker"].toInt();
+                    QString server_id = to_tracker_request["server_id"].toString();
                     QString method  = to_tracker_request["method"].toString();
                     QVariantList params = to_tracker_request["params"].toList();
 
+                    /** Decide which service/server/api to connect to for now its just static **/
+                    QNetworkRequest request;
+                    request.setUrl(QUrl(server_list[server_id]));
 
                     /** Generate a JSON string that will be sent as a request from the client to the server **/
                         //Generate params string (if nessecary)
@@ -197,7 +204,7 @@ bik::bik(QObject *parent) : QObject(parent){
                 last_request_id_tracker += 1;
 
                 //Add to queue
-                addToQueue(last_request_id_tracker, "getreceivedbyaddress", params);
+                addToQueue(last_request_id_tracker, coin_server_id, "getreceivedbyaddress", params);
 
 
             return output;

@@ -14,6 +14,9 @@ class bik : public QObject
 public:
     explicit bik(QObject *parent = 0);
 
+    /* BIK Server Config */
+    void addServerConfig(QString, QString);
+
     /* Coin Api Call list */
         //Variables
             //No vars
@@ -22,6 +25,9 @@ public:
         QMap<QString, QVariant> getreceviedbyaddress(QString coin_server_id, QString coin_address, int mininimum_confirmations=1);
 
 private:
+    /* Server Config */
+        QMap<QString, QString> server_list;
+
     /* Networking Manager */
         //Variables
         QNetworkAccessManager * netAccessManager;
@@ -34,7 +40,7 @@ private:
         int proccessing_request_queue;
 
         //Functions
-        void addToQueue(int request_id_tracker, QString coin_api_call, QVariantList coin_api_parameters);
+        void addToQueue(int request_id_tracker, QString server_id, QString coin_api_call, QVariantList coin_api_parameters);
 
 signals:
 
