@@ -6,17 +6,22 @@
 bik::bik(QObject *parent) : QObject(parent){
     //Init Networking
     netAccessManager = new QNetworkAccessManager();
-        //Set accessible
-        netAccessManager->setNetworkAccessible(QNetworkAccessManager::Accessible);
-
-        //Make connections
-        connect(netAccessManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(coin_server_response(QNetworkReply*)));
 
     //Init request tracker
     last_request_id_tracker = 0;
 
     //Init proccessing request queue
     proccessing_request_queue = 0;
+
+
+    //Config Networking
+        //Set accessible
+        //netAccessManager->setNetworkAccessible(QNetworkAccessManager::Accessible)
+
+        //Make connections
+        connect(netAccessManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(coin_server_response(QNetworkReply*)));
+        connect(netAccessManager, SIGNAL(networkAccessibleChanged(QNetworkAccessManager::NetworkAccessibility)), this, SLOT(netAccessChanged(QNetworkAccessManager::NetworkAccessibility)));
+
 
     //Make connections
         //New request added to queue to "send" from the client to the server.
@@ -41,9 +46,10 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
          * Add "API Call" to the queue to be requested to the network
          **/
         void bik::addToQueue(int request_id_tracker, QString server_id, QString coin_api_call, QVariantList coin_api_parameters){
+            qDebug() << "ADD TO QUEUE";
+
             //Define local function variables
             QMap<QString, QVariant> new_request_map;
-
 
             //Generate request to later add to the coin request tracker
             new_request_map["id_tracker"]   = request_id_tracker;
@@ -58,6 +64,8 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
             //Emit signal to indicate that there is a new call/request added to the queue.
             emit requestAddedToQueue();
         }
+
+
 
         /* *** *** *** *** *** *** *** ***
          * This is activated when an request has been added (Designed to not over run)
@@ -115,7 +123,7 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
                     QString jsonString = "{\"method\":\"%1\", \"id\":%2, \"params\":[%3]}\n\r";
                     jsonString = jsonString.arg(method).arg(id_tracker).arg(params_string);
 
-
+                    qDebug() << jsonString;
                     QByteArray json = jsonString.toUtf8();
 
 
@@ -132,19 +140,18 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
                         //Generate a data/row to save locally
                         QMap<QString, QVariant> fromrpc_tracker_row;
                             //Define what we have right now
+                            fromrpc_tracker_row["id_tracker"] = id_tracker;
                             fromrpc_tracker_row["method"] = method;
                             fromrpc_tracker_row["params"] = params;
 
                             //Define what we don't have right now but will be filled in during networking response.
                             fromrpc_tracker_row["response_code"] = -1; // -1 = null
-                            //fromrpc_tracker_row[""]
 
                         //Add to the queue named "from server rpc tracker"
                         fromrpc_tracker_queue.append(fromrpc_tracker_row);
 
                     //Send request
                     QNetworkReply * reply = netAccessManager->post(request, json);
-
 
                     //Delete the the request from the local queue
                     torpc_tracker_queue.removeFirst();
@@ -159,17 +166,49 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
         void bik::coin_server_response(QNetworkReply * net_reply){
             qDebug() << "NETWORKING RESPONSE";
 
+            /* ** Define Local Variables ** */
+            QByteArray server_reply = net_reply->readAll();
+            qDebug() << server_reply;
+
             /** Was this net reply error or success response? **/
             if(net_reply->error() == 0){
                 //Successfull reply
                 qDebug() << "SUCCESS";
+                    //Convert JSON into a readable format for QT to read from.
+
+                    QScriptValue sc;
+                    QScriptEngine engine;
+                    sc = engine.evaluate("("+QString(server_reply)+")"); // In new versions it may need to look like engine.evaluate("(" + QString(result) + ")");
+
+                    int id_tracker = sc.property("id").toInteger();
+
+                    //Loop through the fromrpc_tracker_queue list and find the associated response
+                    int total_fromrpc_tracker_queue = fromrpc_tracker_queue.size();
+                    for(int a = 0; a < total_fromrpc_tracker_queue; a++){
+                        //Is this the droids we are looking for? (is this the associated response request)
+                        QMap<QString, QVariant> fromrpc_tracker_row = fromrpc_tracker_queue[a].toMap();
+                        if(fromrpc_tracker_row["id_tracker"] == id_tracker){
+                            //We found the fromrpc_tracker_queue index; Append responses to the List; Stop this local for() loop;
+                                //Append response data
+
+                                //Stop for loop
+                                a = total_fromrpc_tracker_queue;
+                        }
+                    }
             }else{
                 //Failed to get a successfull response reply.
-
+                qDebug() << "FAILED";
             }
-            qDebug() << net_reply->readAll();
+
+
+            //Emit a signal that will indcate to the calling app that we have a coin api response for you to review/proccess (error or not)
+            emit coin_response_received();
         }
 
+
+        void bik::netAccessChanged(QNetworkAccessManager::NetworkAccessibility){
+            qDebug() << "ACCESSIBILITY CHANGED";
+        }
 
 /** ** ** ** ** ** ** ** ** ** **
  * (Public) Coin API Call List
@@ -181,13 +220,16 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
          *          you will get a returned balance ever received
          *          for that selected address.
          **/
-        QMap<QString, QVariant> bik::getreceviedbyaddress(QString coin_server_id, QString coin_address, int mininimum_confirmations){
+        QMap<QString, QVariant> bik::getreceivedbyaddress(QString coin_server_id, QString coin_address, int mininimum_confirmations){
+
             /**
              * Define function local variables
              **/
+                int next_tracker_id = getNextRequestTrackerId();
+
                 QMap<QString, QVariant>  output;
-                output["return_status"]         = (int) -1;
-                output["bik_tx_id"]             = (int) -1;
+                output["return_status"].setValue(QVariant(-1));
+                output["bik_tx_id"].setValue(QVariant(next_tracker_id));
 
                 /* Sanatize Incomming Variables */
                 if(mininimum_confirmations < 0){
@@ -199,22 +241,32 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
              * Generate Request, then add request to the queue
              **/
                 //Generate request query to add to the queue
-                QVariantList params;
-                params.append(coin_address);
-                params.append(mininimum_confirmations);
+                QList<QVariant> params;
+                params.append(QVariant(coin_address));
+                params.append(QVariant(mininimum_confirmations));
 
             /**
              * Add request to queue
              **/
                 //Increment request tracker
-                last_request_id_tracker += 1;
-                    //Set bik tx id
-                    output["bik_tx_id"] = last_request_id_tracker;
 
+                    //Set bik tx id
+                    output["bik_tx_id"].setValue(QVariant(last_request_id_tracker));
+
+                    //Set return status
+                    output["return_status"] = 1;
+
+                    qDebug() << "GETRECEIVED BY ADDRESS";
 
                 //Add to queue
                 addToQueue(last_request_id_tracker, coin_server_id, "getreceivedbyaddress", params);
 
-
             return output;
+        }
+
+/** Low Level Functions **/
+        int bik::getNextRequestTrackerId(){
+            last_request_id_tracker +=1;
+
+            return last_request_id_tracker;
         }
