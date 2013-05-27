@@ -19,6 +19,9 @@ public:
     /* BIK Server Config */
     void addServerConfig(QString, QString);
 
+    /* BIK Get Server Response List */
+    QList<QVariant> getCurrentResponseList();
+
     /* Coin Api Call list */
         //Variables
             //No vars

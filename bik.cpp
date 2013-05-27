@@ -164,7 +164,6 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
 
 
         void bik::coin_server_response(QNetworkReply * net_reply){
-            qDebug() << "NETWORKING RESPONSE";
 
             /* ** Define Local Variables ** */
             QByteArray server_reply = net_reply->readAll();
@@ -180,6 +179,7 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
                     QScriptEngine engine;
                     sc = engine.evaluate("("+QString(server_reply)+")"); // In new versions it may need to look like engine.evaluate("(" + QString(result) + ")");
 
+                    //Get id tracker (the rest of the json data will be parsed according to method which will be done below
                     int id_tracker = sc.property("id").toInteger();
 
                     //Loop through the fromrpc_tracker_queue list and find the associated response
@@ -189,7 +189,23 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
                         QMap<QString, QVariant> fromrpc_tracker_row = fromrpc_tracker_queue[a].toMap();
                         if(fromrpc_tracker_row["id_tracker"] == id_tracker){
                             //We found the fromrpc_tracker_queue index; Append responses to the List; Stop this local for() loop;
-                                //Append response data
+                                //Update/Append response data
+                                    //Successfull BIK response code
+                                    fromrpc_tracker_row["response_code"] = 1;
+
+                                    //Return the appropriate data
+                                    if(fromrpc_tracker_row["method"] == "getreceivedbyaddress"){
+                                        fromrpc_tracker_row["coin_balance_display"] = QVariant(sc.property("result").toString()).toString();
+
+                                        double coin_api_balance = sc.property("result").toNumber();
+                                        coin_api_balance = coin_api_balance * 100000000;
+                                        fromrpc_tracker_row["coin_balance_int"]     = QVariant(coin_api_balance).toInt();
+
+                                    }
+
+
+                                    //Set/update data to the fromrpc_tracker_queue
+                                    fromrpc_tracker_queue[a] = fromrpc_tracker_row;
 
                                 //Stop for loop
                                 a = total_fromrpc_tracker_queue;
@@ -228,8 +244,10 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
                 int next_tracker_id = getNextRequestTrackerId();
 
                 QMap<QString, QVariant>  output;
-                output["return_status"].setValue(QVariant(-1));
-                output["bik_tx_id"].setValue(QVariant(next_tracker_id));
+                output["read"]          = 0; //If non zero this has been read by the calling app.
+                output["return_status"] = -1;
+                output["bik_tx_id"]     = next_tracker_id;
+
 
                 /* Sanatize Incomming Variables */
                 if(mininimum_confirmations < 0){
@@ -248,18 +266,11 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
             /**
              * Add request to queue
              **/
-                //Increment request tracker
-
-                    //Set bik tx id
-                    output["bik_tx_id"].setValue(QVariant(last_request_id_tracker));
-
-                    //Set return status
-                    output["return_status"] = 1;
-
-                    qDebug() << "GETRECEIVED BY ADDRESS";
+                //Set return status
+                output["return_status"] = 1;
 
                 //Add to queue
-                addToQueue(last_request_id_tracker, coin_server_id, "getreceivedbyaddress", params);
+                addToQueue(next_tracker_id, coin_server_id, "getreceivedbyaddress", params);
 
             return output;
         }
@@ -269,4 +280,18 @@ void bik::addServerConfig(QString server_id_name, QString connection_string){
             last_request_id_tracker +=1;
 
             return last_request_id_tracker;
+        }
+
+        QList<QVariant> bik::getCurrentResponseList(){
+            //Loop through fromrpc_tracker_queue up to the current .size() and set it to read = 1
+            for(int a = 0; a < fromrpc_tracker_queue.size(); a++){
+                //Set read to 1
+                QMap<QString, QVariant> fromrpc_tracker_queue_row = fromrpc_tracker_queue[a].toMap();
+                fromrpc_tracker_queue_row["read"] = 1;
+
+                //Update row
+                fromrpc_tracker_queue[a] = fromrpc_tracker_queue_row;
+            }
+
+            return fromrpc_tracker_queue;
         }
